@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File to Text Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px;
+            background-color: #f5f8fa;
+            color: #333;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, button, textarea {
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        input[type="file"], input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+        textarea { 
+            width: 100%; 
+            height: 150px; 
+            padding: 10px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+            font-family: monospace;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        a.download-btn {
+            display: inline-block;
+            background-color: #2ecc71;
+            color: white;
+            text-decoration: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+            transition: background-color 0.3s;
+        }
+        a.download-btn:hover {
+            background-color: #27ae60;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        hr {
+            border: 0;
+            height: 1px;
+            background-color: #ddd;
+            margin: 30px 0;
+        }
+        .author {
+            font-size: 16px;
+            color: #7f8c8d;
+            margin-top: -5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1 style="text-align: center; color: #2c3e50;">Secure File to Text Converter</h1>
+    <p class="author">By Ashiful</p>
+    
+    <div class="container">
+        <h2>Convert File to Text</h2>
+        
+        <div class="input-group">
+            <label for="fileInput">Select a file:</label>
+            <input type="file" id="fileInput">
+        </div>
+        
+        <div class="input-group">
+            <label for="encryptPassword">Create password for encryption:</label>
+            <input type="password" id="encryptPassword" placeholder="Enter a secure password">
+        </div>
+        
+        <button id="convertBtn" onclick="convertFileToText()">Convert to Text</button>
+        
+        <div class="input-group">
+            <label for="textOutput">Encrypted Output:</label>
+            <textarea id="textOutput" readonly></textarea>
+        </div>
+        
+        <button id="copyTextBtn" onclick="copyToClipboard()">Copy to Clipboard</button>
+        <button id="downloadTextBtn" onclick="downloadText()" disabled>Download Text File</button>
+        
+        <div id="encryptStatus"></div>
+    </div>
+
+    <div class="container">
+        <h2>Convert Text Back to File</h2>
+        
+        <div class="input-group">
+            <label for="textInput">Select text file:</label>
+            <input type="file" id="textInput" accept=".txt">
+        </div>
+        
+        <div class="input-group">
+            <label for="pasteInput">Or paste encrypted text:</label>
+            <textarea id="pasteInput" placeholder="Paste the encrypted text here"></textarea>
+        </div>
+        
+        <div class="input-group">
+            <label for="decryptPassword">Enter password:</label>
+            <input type="password" id="decryptPassword" placeholder="Enter the password used for encryption">
+        </div>
+        
+        <button id="decryptBtn" onclick="convertTextToFile()">Convert to File</button>
+        
+        <div id="downloadLinkContainer" style="display:none; margin-top: 15px; text-align: center;">
+            <a id="downloadLink" class="download-btn">Download Restored File</a>
+        </div>
+        
+        <div id="decryptStatus"></div>
+    </div>
+
+    <script>
+        // Global error handler for debugging
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error("Error occurred: ", message, "at", source, ":", lineno, ":", colno);
+            return false;
+        };
+        
+        // Show status message
+        function showStatus(elementId, message, isSuccess) {
+            const statusElement = document.getElementById(elementId);
+            statusElement.textContent = message;
+            statusElement.className = isSuccess ? 'status success' : 'status error';
+            
+            // Clear the message after 5 seconds
+            setTimeout(() => {
+                statusElement.textContent = '';
+                statusElement.className = '';
+            }, 5000);
+        }
+        
+        // Copy text to clipboard
+        function copyToClipboard() {
+            const textOutput = document.getElementById('textOutput');
+            if (!textOutput.value) {
+                return showStatus('encryptStatus', 'No text to copy.', false);
+            }
+            
+            textOutput.select();
+            document.execCommand('copy');
+            showStatus('encryptStatus', 'Text copied to clipboard!', true);
+        }
+        
+        function convertFileToText() {
+            const file = document.getElementById('fileInput').files[0];
+            const password = document.getElementById('encryptPassword').value;
+            
+            // Validate inputs
+            if (!file) return showStatus('encryptStatus', 'Please select a file.', false);
+            if (!password) return showStatus('encryptStatus', 'Please enter a password for encryption.', false);
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    // Get the base64 data
+                    const base64String = event.target.result.split(',')[1];
+                    
+                    // Create the data package with filename and content
+                    const dataPackage = JSON.stringify({
+                        name: file.name,
+                        type: file.type,
+                        data: base64String
+                    });
+                    
+                    // Encrypt the data package
+                    const encrypted = CryptoJS.AES.encrypt(dataPackage, password).toString();
+                    
+                    // Output the encrypted data
+                    document.getElementById('textOutput').value = encrypted;
+                    document.getElementById('downloadTextBtn').disabled = false;
+                    
+                    showStatus('encryptStatus', 'File successfully encrypted!', true);
+                } catch (error) {
+                    console.error("Encryption error:", error);
+                    showStatus('encryptStatus', 'Encryption failed: ' + error.message, false);
+                }
+            };
+            reader.onerror = function(event) {
+                console.error("FileReader error:", event);
+                showStatus('encryptStatus', 'Error reading file: ' + event.target.error, false);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function downloadText() {
+            const text = document.getElementById('textOutput').value;
+            if (!text) return showStatus('encryptStatus', 'No text to download.', false);
+
+            const blob = new Blob([text], { type: "text/plain" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "encrypted_file.txt";
+            link.click();
+            
+            showStatus('encryptStatus', 'Text file downloaded successfully!', true);
+        }
+
+        function convertTextToFile() {
+            let encryptedText = "";
+            const file = document.getElementById('textInput').files[0];
+            const pastedText = document.getElementById('pasteInput').value.trim();
+            const password = document.getElementById('decryptPassword').value;
+            
+            // Check if we have either a file or pasted text
+            if (!file && !pastedText) {
+                return showStatus('decryptStatus', 'Please either select a text file or paste encrypted text.', false);
+            }
+            
+            // Validate password
+            if (!password) {
+                return showStatus('decryptStatus', 'Please enter the decryption password.', false);
+            }
+            
+            // Process based on input type
+            if (pastedText) {
+                processDecryption(pastedText);
+            } else {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    processDecryption(event.target.result);
+                };
+                reader.onerror = function(event) {
+                    console.error("FileReader error:", event);
+                    showStatus('decryptStatus', 'Error reading file: ' + event.target.error, false);
+                };
+                reader.readAsText(file);
+            }
+            
+            function processDecryption(text) {
+                try {
+                    // Try to decrypt the text
+                    const decrypted = CryptoJS.AES.decrypt(text, password).toString(CryptoJS.enc.Utf8);
+                    
+                    // If decryption was successful, we'll have a valid string
+                    if (!decrypted) {
+                        throw new Error('Incorrect password or corrupted data');
+                    }
+                    
+                    // Parse the decrypted data
+                    const fileData = JSON.parse(decrypted);
+                    
+                    if (!fileData.data || !fileData.name) {
+                        throw new Error('Invalid file data format');
+                    }
+                    
+                    // Convert the base64 data back to a blob
+                    const byteCharacters = atob(fileData.data);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: fileData.type || 'application/octet-stream' });
+
+                    // Set up the download link
+                    const link = document.getElementById("downloadLink");
+                    link.href = URL.createObjectURL(blob);
+                    link.download = fileData.name;
+                    document.getElementById('downloadLinkContainer').style.display = "block";
+                    
+                    showStatus('decryptStatus', 'File successfully decrypted!', true);
+                } catch (error) {
+                    console.error("Decryption error:", error);
+                    let errorMsg = error.message;
+                    if (error.message === 'Malformed UTF-8 data' || error.message.includes('Unexpected token')) {
+                        errorMsg = 'Incorrect password or invalid encrypted data';
+                    }
+                    showStatus('decryptStatus', 'Decryption failed: ' + errorMsg, false);
+                    document.getElementById('downloadLinkContainer').style.display = "none";
+                }
+            }
+        }
+
+        // Event listeners for better UX
+        document.getElementById('pasteInput').addEventListener('input', function() {
+            // If user pastes text, disable the file input
+            if (this.value.trim()) {
+                document.getElementById('textInput').disabled = true;
+            } else {
+                document.getElementById('textInput').disabled = false;
+            }
+        });
+
+        document.getElementById('textInput').addEventListener('change', function() {
+            // If user selects a file, clear the paste area
+            if (this.files.length > 0) {
+                document.getElementById('pasteInput').value = '';
+            }
+        });
+    </script>
+
+</body>
+</html>
